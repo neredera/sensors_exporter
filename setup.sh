@@ -33,6 +33,5 @@ python3 exporter.py --help
 
 sudo systemctl status sensors_exporter.service
 
-#python3 exporter.py --use_bmp085 False --use_gps True
+#python3 exporter.py --use_gps True
 #python3 exporter.py --use_bmp085 True --use_gps True
-
