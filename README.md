@@ -6,6 +6,7 @@ At the moment supported are:
 * [BMP085/BMP180 pressure sensor](https://www.adafruit.com/product/1603)
 * [GPS (via GPSd)](https://gpsd.gitlab.io/gpsd/)
 * [ZG mini CO2 sensor](https://www.co2meter.com/products/co2mini-co2-indoor-air-quality-monitor) (also known as: [TFA-Dostmann CO2 Monitor AIRCO2NTROL MINI](https://www.tfa-dostmann.de/en/product/co2-monitor-airco2ntrol-mini-31-5006/) and [TFA CO2 Messgerät](https://de.elv.com/tfa-co2-messgeraet-aircontrol-mini-119661))
+* [GM-45 geiger counter](https://www.blackcatsystems.com/GM/raspberry_pi_radiation_detector.html)
 
 It is tested with Raspberry Pis, and the `setup.sh` script is specific for [Raspberry Pi OS Lite](https://www.raspberrypi.org/software/),
 but should be simple to adapt for other OSs.

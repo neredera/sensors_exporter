@@ -3,25 +3,26 @@
 import argparse
 import distutils.util as util
 import hid
+import serial
 import time
 import gpsd
 import os
 import logging
 import statistics
+import threading
 
 import Adafruit_BMP.BMP085 as BMP085
 import prometheus_client
 
 from collections import deque
 from prometheus_client.core import (
-    InfoMetricFamily, GaugeMetricFamily)
+    InfoMetricFamily, GaugeMetricFamily, CounterMetricFamily)
 from threading import Thread
 
 # TODO: Errorhandling, Recovery after errors (e.g. sensor temporary unavailable), error counters
 # TODO: Fill zgmco2 from Loop. zgmco2: Do not send data if not available
 # TODO: Split in file per sensor
 # TODO: Logging for SystemD. More Logging.
-# TODO: GM45 (see https://www.blackcatsystems.com/GM/raspberry_pi_radiation_detector.html )
 # TODO: Own User/Group for Service
 
 PROMETHEUS_NAMESPACE = 'sensor'
@@ -34,15 +35,18 @@ class SensorsCollector(object):
     use_gps = False
     zgmco2 = None
     use_zgmco2 = False
+    use_gm45 = False
+    gm45 = None
     fixedposition = True
     lastaltitudevalues = deque(maxlen = 5760) # Queue for 1 day when a 15sec scrape interval is used
     lastlongitudevalues = deque(maxlen = 5760)
     lastlatitudevalues = deque(maxlen = 5760)
 
-    def __init__(self, use_bmp085, use_gps, use_zgmco2, fixedposition, registry=prometheus_client.REGISTRY):
+    def __init__(self, use_bmp085, use_gps, use_zgmco2, use_gm45, gm45_device, fixedposition, registry=prometheus_client.REGISTRY):
         self.use_bmp085 = use_bmp085
         self.use_gps = use_gps
         self.use_zgmco2 = use_zgmco2
+        self.use_gm45 = use_gm45
         self.fixedposition = fixedposition
 
         if self.use_bmp085:
@@ -55,6 +59,10 @@ class SensorsCollector(object):
         if self.use_zgmco2:
             self.zgmco2 = Zgmco2Sensor()
             Thread(target=self.zgmco2.mainloop).start()
+
+        if self.use_gm45:
+            self.gm45 = Gm45Sensor(gm45_device)
+            Thread(target=self.gm45.mainloop).start()
 
         registry.register(self)
 
@@ -217,7 +225,23 @@ class SensorsCollector(object):
             if not co2 is None:
                 zgmco2_co2.add_metric(labels=[], value=co2)
 
-        if self.fixedposition:
+        if self.use_gm45:
+            gm45_info = InfoMetricFamily(
+                PROMETHEUS_NAMESPACE + '_gm45_info',
+                'GM-45 geiger counter information',
+                value={'device': self.gm45.device})
+            metrics.append(gm45_info)
+
+            # get a current count
+            self.gm45.updateCount()
+
+            gm45_counts = CounterMetricFamily(
+                PROMETHEUS_NAMESPACE + '_gm45_counts',
+                'GM-45 geiger counter, radioactive events counter',
+                value=self.gm45.count)
+            metrics.append(gm45_counts)
+
+        if self.use_gps and self.fixedposition:
             calc_median_altitude = GaugeMetricFamily(
                 PROMETHEUS_NAMESPACE + '_calc_median_altitude',
                 'Median altitude in m over the last day',
@@ -334,6 +358,46 @@ class Zgmco2Sensor(object):
                     logging.debug(f'CO2 = {value} ppm')
 
 
+class Gm45Sensor(object):
+    """Read data from a GM-45 Geiger counter"""
+
+    device = None
+    port = None
+    count_lock = threading.Lock()
+    count = 0
+    initialized = False
+
+    def __init__(self, device):
+        self.device = device
+
+        self.port = serial.Serial(self.device, baudrate=38400, timeout=0.0,dsrdtr=True)
+
+    def mainloop(self):
+        # throw first events away
+        time.sleep(1)
+        ignoreeventcount = len(self.port.read(10000)) #read some bytes from the serial port
+        time.sleep(1)
+        ignoreeventcount += len(self.port.read(10000)) #read some bytes from the serial port
+
+        if ignoreeventcount > 0:
+            logging.info(f'GM45: ignoring {ignoreeventcount} old events')
+
+        self.initialized = True
+        while True:
+            time.sleep(5)
+            self.updateCount()
+
+    def updateCount(self):
+        if not self.initialized:
+            return
+
+        recbytes=self.port.read(1000) #read some bytes from the serial port
+        new_counts=len(recbytes) #number of bytes is the number of detection events
+
+        with self.count_lock:
+            self.count += new_counts
+        logging.debug(f'GM45 count increased by {new_counts}')
+
 if __name__ == '__main__':
     logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 #    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -345,13 +409,16 @@ if __name__ == '__main__':
     PARSER.add_argument("--fixedposition", help="Set to true if the device is at a fixed position (activates long term average for position and height)", default="True")
     #PARSER.add_argument("--use_tsl2561", help="Set to true to use the TSL2561 luminosity sensor", default="False")
     PARSER.add_argument("--use_zgmco2", help="Set to true to use the ZG mini CO2 sensor", default="False")
-    #PARSER.add_argument("--use_gm45", help="Set to true to use the GM-45 Geiger counter sensor", default="False")
+    PARSER.add_argument("--use_gm45", help="Set to true to use the GM-45 Geiger counter sensor", default="False")
+    PARSER.add_argument("--gm45_device", help="Device to use for gm45 (default: /dev/ttyUSB0)", default="/dev/ttyUSB0")
     ARGS = PARSER.parse_args()
 
     port = int(ARGS.port)
     use_bmp085 = bool(util.strtobool(ARGS.use_bmp085))
     use_gps = bool(util.strtobool(ARGS.use_gps))
     use_zgmco2 = bool(util.strtobool(ARGS.use_zgmco2))
+    use_gm45 = bool(util.strtobool(ARGS.use_gm45))
+    gm45_device = str(ARGS.gm45_device)
     fixedposition = bool(util.strtobool(ARGS.fixedposition))
 
     if use_bmp085:
@@ -360,8 +427,10 @@ if __name__ == '__main__':
         logging.info("GPS data (gpsd) enabled")
     if use_zgmco2:
         logging.info("ZG mini CO2 sensor enabled")
+    if use_gm45:
+        logging.info("GM-45 Geiger counter enabled")
 
-    SENSORY_COLLECTOR = SensorsCollector(use_bmp085, use_gps, use_zgmco2, fixedposition)
+    SENSORY_COLLECTOR = SensorsCollector(use_bmp085, use_gps, use_zgmco2, use_gm45, gm45_device, fixedposition)
 
     logging.info("Starting exporter on port {}".format(port))
     prometheus_client.start_http_server(port)
