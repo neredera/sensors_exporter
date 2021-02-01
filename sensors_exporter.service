@@ -4,11 +4,12 @@ After=multi-user.target
 
 [Service]
 Type=simple
-User=pi
+User=sensors_exporter
 WorkingDirectory=/home/pi/sensors_exporter
 ExecStart=/home/pi/sensors_exporter/exporter.py --use_gps True
 # ExecStart=/home/pi/sensors_exporter/exporter.py --use_gps True --use_bmp085 True
 # ExecStart=/home/pi/sensors_exporter/exporter.py --use_gps True --use_zgmco2 True
+# ExecStart=/home/pi/sensors_exporter/exporter.py --use_gm45 True --gm45_device /dev/serial/by-id/usb-FTDI_USB_HS_SERIAL_CONVERTER_FTF2M40X-if00-port0
 StandardInput=tty-force
 
 [Install]

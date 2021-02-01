@@ -12,13 +12,19 @@ python3 -m venv .
 # install python modules
 # this module supports BMP085 and BMP180 but is deprecated.
 # the replacement only supports BMP280 and not BMP085 and BMP180.
-python3 -m pip install prometheus_client gpsd-py3 Adafruit-BMP hid
+python3 -m pip install prometheus_client gpsd-py3 Adafruit-BMP hid pyserial
 
+
+# user for service
+useradd -Mr sensors_exporter
+usermod -L sensors_exporter
+# usermod -aG root sensors_exporter
+# usermod -aG sudo sensors_exporter
 
 # for zgmco2 (access to USB device)
 sudo cp 92-zgmco2.rules /etc/udev/rules.d/92-zgmco2.rules
 sudo groupadd -f zgmco2
-sudo usermod -a -G zgmco2 pi
+sudo usermod -a -G zgmco2 sensors_exporter
 # relogin is needed that the new group becomes active
 
 chmod +x exporter.py
