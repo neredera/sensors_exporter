@@ -329,7 +329,7 @@ class Zgmco2Sensor(object):
             logging.debug(f'Serial Number: {self.serial}')
 
             key = (0).to_bytes(8, byteorder='big')
-            frdata = b"\x00" +key
+            frdata = b"\x00" + key
             h.send_feature_report(frdata)
             #  h.write(frdata)
 
