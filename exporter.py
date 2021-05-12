@@ -38,9 +38,9 @@ class SensorsCollector(object):
     use_gm45 = False
     gm45 = None
     fixedposition = True
-    lastaltitudevalues = deque(maxlen = 5760) # Queue for 1 day when a 15sec scrape interval is used
-    lastlongitudevalues = deque(maxlen = 5760)
-    lastlatitudevalues = deque(maxlen = 5760)
+    lastaltitudevalues = deque(maxlen = 5744) # Queue for 23h56m (same sats are again visible) when a 15sec scrape interval is used
+    lastlongitudevalues = deque(maxlen = 5744)
+    lastlatitudevalues = deque(maxlen = 5744)
 
     def __init__(self, use_bmp085, use_gps, use_zgmco2, use_gm45, gm45_device, fixedposition, registry=prometheus_client.REGISTRY):
         self.use_bmp085 = use_bmp085
