@@ -337,12 +337,16 @@ class Zgmco2Sensor(object):
                 data = h.read(200, 10000)
                 # logging.debug(f'Read ({type(data)}, {len(data)}): {data}')
                 if len(data)!=8:
-                    logging.info(f'Unexpected packet received (expected size 8, received {len(data)}.')
+                    logging.info(f'Unexpected packet received (expected size 8, received {len(data)}).')
                     continue
-                decrypteddata = self.decrypt(key, data)
+                if data[4] == 0x0D:
+                    decrypteddata = data # newer devices send data unencrypted, e.g. serial=2.00
+                else:
+                    decrypteddata = self.decrypt(key, data)  # older devices send data encrypted, e.g. serial=1.40
+                    
                 checksum = (decrypteddata[0] + decrypteddata[1] + decrypteddata[2]) & 0xff
                 if checksum != decrypteddata[3]:
-                    logging.info(f'Checksum failed (calculated: {checksum} received: {decrypteddata[3]}')
+                    logging.info(f'Checksum failed (calculated: {checksum} received: {decrypteddata[3]})')
                     continue
                 if decrypteddata[4] != 0x0D:
                     logging.info('End of message missing')
